@@ -27,11 +27,13 @@ def chat():
     elif data and data.get('action') == "ask":
         question = data.get("question", "ask to send the question again")
         reply = chatbot.send_message(question)
+        print(f"Chatbot reply: {reply}")
         return jsonify({"status": "success", "response": reply})
 
     elif data and data.get('action') == "summarize":
         page_content = data.get("content", "")
         reply = chatbot.summarize(page_content)
+        print(f"Chatbot reply: {reply}")
         return jsonify({"status": "success", "response": reply})
 
     elif data and data.get("action") == "storeHistory":
@@ -65,6 +67,7 @@ def chat():
     return jsonify({"status": "error", "response": "Invalid request"})
 
 
+
 @app.route('/chatlogs', methods=['GET'])
 def get_logs():
     try:
@@ -79,5 +82,13 @@ def get_logs():
         return jsonify({"status": "error", "response": str(e)})
 
 
+
+@app.route('/log', methods=['POST'])
+def log():
+    data = request.json
+    print("Frontend Log:", data.get("message"))
+    return jsonify({"status": "logged"})
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, threaded=True)

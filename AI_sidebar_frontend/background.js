@@ -51,3 +51,19 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     });
   }
 });
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: 'openSidebar',
+      title: 'Open Sidebar',
+      contexts: ['all']
+    });
+
+    chrome.contextMenus.create({
+      id: 'summarizeSelection',
+      title: 'Summarize Selection',
+      contexts: ['selection']
+    });
+  });
+});

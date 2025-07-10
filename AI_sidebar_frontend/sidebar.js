@@ -6,7 +6,13 @@ let chatHistory = [];
 // Greet on load
 (async () => {
   const response = await sendToBackend({ action: 'greet', name: 'Rajesh' });
-  addMessage("AI", response?.message || 'Welcome Rajesh! (offline)');
+  logToBackend("Greet handler called");
+
+  if (response?.status === 'success' && response?.response) {
+    addMessage("AI", response.response);
+  } else {
+    addMessage("AI", "Welcome Rajesh! (offline)");
+  }
 })();
 
 // Add message to UI
@@ -43,13 +49,40 @@ function chunkText(text, size = 1500) {
 submitButton.addEventListener('click', async () => {
   const query = queryInput.value.trim();
   if (!query) return;
+
   submitButton.disabled = true;
   addMessage('You', query);
   queryInput.value = '';
+
   const loading = addMessage('AI', 'Thinking sir...');
-  const response = await sendToBackend({ action: 'ask', question: query });
-  loading.remove();
-  addMessage('AI', response?.response || 'No response from backend');
+
+  let timeoutId = setTimeout(() => {
+    loading.remove();
+    addMessage('AI', '⏱️ Request timed out. Please try again.');
+    submitButton.disabled = false;
+    logToBackend("Timeout: No response after 10 seconds");
+  }, 10000); // 10 seconds
+
+  try {
+    const response = await sendToBackend({ action: 'ask', question: query });
+
+    // Stop the timeout if response is received
+    clearTimeout(timeoutId);
+    loading.remove();
+
+    if (response?.status === 'success' && response?.response) {
+      logToBackend("got to the ask button handler");
+      addMessage('AI', response.response);
+    } else {
+      addMessage('AI', 'Error: No valid response from backend.');
+    }
+  } catch (err) {
+    clearTimeout(timeoutId);
+    loading.remove();
+    addMessage('AI', '⚠️ An error occurred.');
+    console.error("Ask handler error:", err);
+  }
+
   submitButton.disabled = false;
 });
 
@@ -72,16 +105,25 @@ document.getElementById('summarize').addEventListener('click', async () => {
       if (response && response.content) {
         const chunks = chunkText(response.content);
         let summary = '';
+
         for (const chunk of chunks) {
-          const chunkResponse = await sendToBackend({ query: 'summarize', content: chunk });
-          summary += (chunkResponse?.response || 'Error summarizing') + ' ';
+          const chunkResponse = await sendToBackend({ action: 'summarize', content: chunk });
+          logToBackend("Summarize chunk response: " + JSON.stringify(chunkResponse));
+          logToBackend("Summarize triggered and sending chunks....")
+          if (chunkResponse?.status === 'success' && chunkResponse?.response) {
+            summary += chunkResponse.response + ' ';
+          } else {
+            summary += 'Error summarizing this chunk. ';
+          }
         }
+
         loadingMessage.remove();
         addMessage('AI', summary.trim());
       } else {
         loadingMessage.remove();
         addMessage('AI', 'Error: Could not retrieve page content');
       }
+
       submitButton.disabled = false;
     });
   });
@@ -92,17 +134,28 @@ document.getElementById('newChat').addEventListener('click', async () => {
   chatContainer.innerHTML = '';
   chatHistory = [];
   chrome.storage.local.set({ chatHistory });
+
   const response = await sendToBackend({ action: 'greet', name: 'Rajesh' });
-  addMessage("AI", response?.message || 'Hello Rajesh!');
+  logToBackend("New chat greet triggered");
+
+  if (response?.status === 'success' && response?.response) {
+    addMessage("AI", response.response);
+  } else {
+    addMessage("AI", "Hello Rajesh!");
+  }
 });
 
 // Respond to context menu or external message
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === 'summarizeSelectedText') {
     addMessage('You', msg.content);
-    sendToBackend({ query: 'summarize', content: msg.content }).then(
-      res => addMessage('AI', res?.response || 'No response')
-    );
+    sendToBackend({ action: 'summarize', content: msg.content }).then(res => {
+      if (res?.status === 'success' && res?.response) {
+        addMessage('AI', res.response);
+      } else {
+        addMessage('AI', 'No valid summary returned.');
+      }
+    });
   }
 });
 
@@ -120,3 +173,13 @@ async function sendToBackend(data) {
     return { response: 'Offline mode: No backend response' };
   }
 }
+
+// Send frontend log to backend
+async function logToBackend(message) {
+  await fetch('http://127.0.0.1:5000/log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message })
+  });
+}
+
