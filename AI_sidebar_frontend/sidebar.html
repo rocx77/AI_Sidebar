@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Assistant Sidebar</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="sidebar">
+    <header class="sidebar-header">
+      <img src="iconx48.png" alt="AI Assistant Logo" class="logo">
+      <h1>AI Assistant</h1>
+    </header>
+    <button id="newChat">New Chat</button>
+    <div id="chat-container" class="chat-area"></div>
+    <div class="input-container">
+      <textarea id="query" placeholder="Type your message..."></textarea>
+      <div class="button-row">
+        <button id="submit">Send</button>
+        <button id="summarize">Summarize Page</button>
+      </div>
+    </div>
+  </div>
+  <script src="sidebar.js"></script>
+</body>
+</html>

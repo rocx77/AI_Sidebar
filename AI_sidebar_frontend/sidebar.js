@@ -1,0 +1,122 @@
+const chatContainer = document.getElementById('chat-container');
+const queryInput = document.getElementById('query');
+const submitButton = document.getElementById('submit');
+let chatHistory = [];
+
+// Greet on load
+(async () => {
+  const response = await sendToBackend({ action: 'greet', name: 'Rajesh' });
+  addMessage("AI", response?.message || 'Welcome Rajesh! (offline)');
+})();
+
+// Add message to UI
+function addMessage(sender, text) {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `message ${sender === 'You' ? 'user-message' : 'ai-message'}`;
+  const content = document.createElement('span');
+  content.textContent = text;
+  messageDiv.appendChild(content);
+  chatContainer.appendChild(messageDiv);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+  chatHistory.push({ sender, text });
+  chrome.storage.local.set({ chatHistory });
+}
+
+// Restore chat history
+chrome.storage.local.get(['chatHistory'], (result) => {
+  if (result.chatHistory) {
+    chatHistory = result.chatHistory;
+    chatHistory.forEach(msg => addMessage(msg.sender, msg.text));
+  }
+});
+
+// Utility to chunk text
+function chunkText(text, size = 1500) {
+  const chunks = [];
+  for (let i = 0; i < text.length; i += size) {
+    chunks.push(text.slice(i, i + size));
+  }
+  return chunks;
+}
+
+// Handle "submit" click
+submitButton.addEventListener('click', async () => {
+  const query = queryInput.value.trim();
+  if (!query) return;
+  submitButton.disabled = true;
+  addMessage('You', query);
+  queryInput.value = '';
+  const loading = addMessage('AI', 'Thinking sir...');
+  const response = await sendToBackend({ action: 'ask', question: query });
+  loading.remove();
+  addMessage('AI', response?.response || 'No response from backend');
+  submitButton.disabled = false;
+});
+
+// Handle Ctrl+Enter
+queryInput.addEventListener('keydown', async (e) => {
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    submitButton.click();
+  }
+});
+
+// Handle "Summarize" button
+document.getElementById('summarize').addEventListener('click', async () => {
+  submitButton.disabled = true;
+  addMessage('You', 'summarize');
+  const loadingMessage = addMessage('AI', 'Reading page content...');
+
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    chrome.tabs.sendMessage(tabs[0].id, { action: 'getPageContent' }, async (response) => {
+      if (response && response.content) {
+        const chunks = chunkText(response.content);
+        let summary = '';
+        for (const chunk of chunks) {
+          const chunkResponse = await sendToBackend({ query: 'summarize', content: chunk });
+          summary += (chunkResponse?.response || 'Error summarizing') + ' ';
+        }
+        loadingMessage.remove();
+        addMessage('AI', summary.trim());
+      } else {
+        loadingMessage.remove();
+        addMessage('AI', 'Error: Could not retrieve page content');
+      }
+      submitButton.disabled = false;
+    });
+  });
+});
+
+// New Chat
+document.getElementById('newChat').addEventListener('click', async () => {
+  chatContainer.innerHTML = '';
+  chatHistory = [];
+  chrome.storage.local.set({ chatHistory });
+  const response = await sendToBackend({ action: 'greet', name: 'Rajesh' });
+  addMessage("AI", response?.message || 'Hello Rajesh!');
+});
+
+// Respond to context menu or external message
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.action === 'summarizeSelectedText') {
+    addMessage('You', msg.content);
+    sendToBackend({ query: 'summarize', content: msg.content }).then(
+      res => addMessage('AI', res?.response || 'No response')
+    );
+  }
+});
+
+// Send request to backend
+async function sendToBackend(data) {
+  try {
+    const response = await fetch('http://127.0.0.1:5000/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return await response.json();
+  } catch (err) {
+    console.error('Backend error:', err);
+    return { response: 'Offline mode: No backend response' };
+  }
+}

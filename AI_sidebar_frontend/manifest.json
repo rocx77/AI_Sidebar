@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "AI Assistant Sidebar",
+  "version": "1.0",
+  "description": "A sidebar extension for AI-assisted browsing",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "sidePanel",
+    "contextMenus",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_title": "AI Assistant",
+    "default_popup": "sidebar.html",
+    "default_icon": {
+      "48": "iconx48.png"
+    }
+  },
+  "icons": {
+    "48": "iconx48.png",
+    "16": "iconx16.png",
+    "128": "iconx128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidebar.html"
+  },
+  "content_scripts": [
+  {
+    "matches": ["<all_urls>"],
+    "js": ["content.js"],
+    "run_at": "document_idle"
+  }
+],
+
+  "commands": {
+    "open-sidebar": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+A"
+      },
+      "description": "Open AI Assistant Sidebar"
+    }
+  }
+}
