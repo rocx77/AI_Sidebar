@@ -1,0 +1,5 @@
+.env
+enviro/
+.mypy_cache/    
+__pycache__/
+
