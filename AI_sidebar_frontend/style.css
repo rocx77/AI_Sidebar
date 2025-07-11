@@ -28,6 +28,34 @@ html, body {
   gap: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid #30363d;
+  position: relative;
+}
+
+.terminate-btn {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s, background-color 0.2s;
+  display: block;
+  z-index: 1000;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.terminate-btn:hover {
+  opacity: 1;
+  background-color: #c82333;
+}
+
+.terminate-btn.hidden {
+  display: none;
 }
 
 .logo {

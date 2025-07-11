@@ -1,7 +1,9 @@
 const chatContainer = document.getElementById('chat-container');
 const queryInput = document.getElementById('query');
 const submitButton = document.getElementById('submit');
+const terminateButton = document.getElementById('terminate');
 let chatHistory = [];
+let currentSessionId = null;
 
 // Greet on load
 (async () => {
@@ -26,6 +28,7 @@ function addMessage(sender, text) {
   chatContainer.scrollTop = chatContainer.scrollHeight;
   chatHistory.push({ sender, text });
   chrome.storage.local.set({ chatHistory });
+  return messageDiv; // Return the created element
 }
 
 // Restore chat history
@@ -100,33 +103,110 @@ document.getElementById('summarize').addEventListener('click', async () => {
   addMessage('You', 'summarize');
   const loadingMessage = addMessage('AI', 'Reading page content...');
 
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, { action: 'getPageContent' }, async (response) => {
-      if (response && response.content) {
-        const chunks = chunkText(response.content);
-        let summary = '';
-
-        for (const chunk of chunks) {
-          const chunkResponse = await sendToBackend({ action: 'summarize', content: chunk });
-          logToBackend("Summarize chunk response: " + JSON.stringify(chunkResponse));
-          logToBackend("Summarize triggered and sending chunks....")
-          if (chunkResponse?.status === 'success' && chunkResponse?.response) {
-            summary += chunkResponse.response + ' ';
-          } else {
-            summary += 'Error summarizing this chunk. ';
-          }
-        }
-
+  try {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (chrome.runtime.lastError) {
         loadingMessage.remove();
-        addMessage('AI', summary.trim());
-      } else {
-        loadingMessage.remove();
-        addMessage('AI', 'Error: Could not retrieve page content');
+        addMessage('AI', 'Error: Could not access tabs');
+        submitButton.disabled = false;
+        return;
       }
 
-      submitButton.disabled = false;
+      chrome.tabs.sendMessage(tabs[0].id, { action: 'getPageContent' }, async (response) => {
+        if (chrome.runtime.lastError) {
+          loadingMessage.remove();
+          addMessage('AI', 'Error: Could not communicate with page');
+          submitButton.disabled = false;
+          return;
+        }
+
+        if (response && response.content) {
+          console.log('Page content received:', response.content.substring(0, 100) + '...');
+          const chunks = chunkText(response.content);
+          currentSessionId = Date.now().toString(); // Generate unique session ID
+          
+          console.log(`Processing ${chunks.length} chunks with session ID: ${currentSessionId}`);
+          loadingMessage.textContent = `Processing ${chunks.length} chunks...`;
+          
+          // Show terminate button
+          terminateButton.classList.remove('hidden');
+
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            console.log(`Sending chunk ${i + 1}/${chunks.length} (${chunk.length} chars)`);
+            
+            const chunkResponse = await sendToBackend({ 
+              action: 'summarize', 
+              content: chunk,
+              chunk_index: i,
+              total_chunks: chunks.length,
+              session_id: currentSessionId
+            });
+            
+            console.log(`Chunk ${i + 1} response:`, chunkResponse);
+            logToBackend(`Summarize chunk ${i + 1}/${chunks.length} response: ${JSON.stringify(chunkResponse)}`);
+            
+            if (chunkResponse?.status === 'success') {
+              if (chunkResponse?.is_final) {
+                // This is the final response with the complete summary
+                console.log('Final summary received:', chunkResponse.response);
+                loadingMessage.remove();
+                addMessage('AI', chunkResponse.response);
+                currentSessionId = null;
+                terminateButton.classList.add('hidden');
+                break;
+              } else {
+                // Update loading message for intermediate chunks
+                loadingMessage.textContent = `Processed ${i + 1}/${chunks.length} chunks...`;
+              }
+            } else {
+              console.error('Chunk processing failed:', chunkResponse);
+              loadingMessage.remove();
+              addMessage('AI', 'Error: Failed to process chunks');
+              currentSessionId = null;
+              terminateButton.classList.add('hidden');
+              break;
+            }
+          }
+        } else {
+          loadingMessage.remove();
+          addMessage('AI', 'Error: Could not retrieve page content');
+        }
+
+        submitButton.disabled = false;
+        currentSessionId = null;
+        terminateButton.classList.remove('active');
+      });
     });
-  });
+  } catch (error) {
+    loadingMessage.remove();
+    addMessage('AI', 'Error: An unexpected error occurred');
+    submitButton.disabled = false;
+  }
+});
+
+// Terminate button
+terminateButton.addEventListener('click', async () => {
+  if (currentSessionId) {
+    console.log('Terminating session:', currentSessionId);
+    
+    try {
+      const response = await sendToBackend({ 
+        action: 'terminate', 
+        session_id: currentSessionId 
+      });
+      
+      if (response?.status === 'success') {
+        addMessage('AI', 'Generation stopped by user');
+      }
+    } catch (error) {
+      console.error('Error terminating session:', error);
+    }
+    
+    currentSessionId = null;
+    terminateButton.classList.remove('active');
+    submitButton.disabled = false;
+  }
 });
 
 // New Chat
@@ -170,7 +250,7 @@ async function sendToBackend(data) {
     return await response.json();
   } catch (err) {
     console.error('Backend error:', err);
-    return { response: 'Offline mode: No backend response' };
+    return { status: 'error', response: 'Offline mode: No backend response' };
   }
 }
 

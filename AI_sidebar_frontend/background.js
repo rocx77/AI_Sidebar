@@ -1,12 +1,34 @@
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getPageContent') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      chrome.tabs.sendMessage(tabs[0]?.id, { action: 'extractContent' }, (response) => {
-        if (chrome.runtime.lastError || !response) {
-          sendResponse({ content: '' });
-        } else {
-          sendResponse(response);
-        }
+      const tab = tabs[0];
+      if (!tab) {
+        sendResponse({ content: '' });
+        return;
+      }
+      
+      // First try to inject the content script
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js']
+      }).then(() => {
+        // Then send the message
+        chrome.tabs.sendMessage(tab.id, { action: 'getPageContent' }, (response) => {
+          if (chrome.runtime.lastError || !response) {
+            sendResponse({ content: '' });
+          } else {
+            sendResponse(response);
+          }
+        });
+      }).catch(() => {
+        // If injection fails, try sending message directly
+        chrome.tabs.sendMessage(tab.id, { action: 'getPageContent' }, (response) => {
+          if (chrome.runtime.lastError || !response) {
+            sendResponse({ content: '' });
+          } else {
+            sendResponse(response);
+          }
+        });
       });
     });
     return true;
