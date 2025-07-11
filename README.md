@@ -1,6 +1,6 @@
 # 🧠 AI Assistant Sidebar Extension
 
-A Chrome-compatible browser sidebar extension that integrates a smart AI assistant powered by Google Gemini. It can answer user queries, summarize web pages, and maintain chat history — all from a sleek in-browser interface.
+A Chromium-compatible browser sidebar extension that integrates a smart AI assistant powered by Google Gemini. It can answer user queries, summarize web pages, and maintain chat history — all from a sleek in-browser interface.
 
 ---
 
@@ -52,7 +52,7 @@ An always-available assistant in your browser to:
 ### 1. Clone the Repo
 
 ```bash
-git clone https://github.com/your-username/ai-assistant-sidebar.git
+git clone https://github.com/rocx77/AI_Sidebar.git
 cd ai-assistant-sidebar
 ```
 
@@ -108,5 +108,3 @@ The backend runs on: `http://127.0.0.1:5000`
 This project is licensed under the MIT License.
 
 ---
-
-Let me know if you’d like a more minimalist version or one with added badges and GitHub metadata for SEO.
